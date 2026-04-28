@@ -3,78 +3,135 @@ import pandas as pd
 import plotly.express as px
 import os
 
-# Configuration académique sobre
-st.set_page_config(page_title="INF232 - Analyse de Données", layout="wide")
+# 1. Configuration de la page
+st.set_page_config(page_title="CUNI VALENCE - INF232", layout="centered")
 
-st.title("Système de Collecte et d'Analyse Cunicole")
-st.caption("Filière Informatique - UY1 | INF 232 EC2")
+# 2. HACK CSS (Le design sombre et moderne de ton ami)
+st.markdown("""
+<style>
+    /* Fond sombre global */
+    [data-testid="stAppViewContainer"] {
+        background-color: #0E1117;
+        color: #FFFFFF;
+    }
 
-# --- GESTION DE LA BASE DE DONNÉES (LOCALE) ---
-DB_FILE = "database_collecte.csv"
+    /* Titre principal style "DATA VALENCE" */
+    .main-title {
+        font-size: 3.5rem;
+        font-weight: 850;
+        text-align: center;
+        letter-spacing: -2px;
+        color: #ffffff;
+        margin-bottom: 0px;
+        font-family: 'Inter', sans-serif;
+    }
+    .accent {
+        color: #00FBFF; /* Cyan néon */
+    }
+
+    /* Bandeau de description */
+    .description-box {
+        font-size: 0.9rem;
+        text-align: center;
+        color: #00FBFF;
+        background-color: rgba(0, 251, 255, 0.1);
+        padding: 12px;
+        border: 1px solid rgba(0, 251, 255, 0.3);
+        border-radius: 4px;
+        margin-top: 15px;
+        margin-bottom: 30px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+
+    /* Personnalisation des onglets (Tabs) */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 10px;
+        justify-content: center;
+    }
+    .stTabs [data-baseweb="tab"] {
+        height: 50px;
+        background-color: #1A1C24;
+        border-radius: 4px;
+        color: white;
+        padding: 10px 30px;
+    }
+    .stTabs [aria-selected="true"] {
+        background-color: #00FBFF !important;
+        color: #000000 !important;
+        font-weight: bold;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# 3. HEADER
+st.markdown('<div class="main-title">CUNI <span class="accent">VALENCE</span></div>', unsafe_allow_html=True)
+st.markdown('<div class="description-box">COLLECTE ET ANALYSE DESCRIPTIVE DE LA CROISSANCE ET DES FLUX PRODUCTIFS CUNICOLES.</div>', unsafe_allow_html=True)
+st.caption("Filière Informatique L2 - UY1 | Module de Recherche Académique v1.0")
+
+# 4. GESTION DES DONNÉES (CSV Local)
+DB_FILE = "cunistat_data.csv"
 
 def load_data():
     if os.path.exists(DB_FILE):
         return pd.read_csv(DB_FILE)
     return pd.DataFrame(columns=["Date", "Stade", "Poids"])
 
-def save_data(df):
-    df.to_csv(DB_FILE, index=False)
+def save_data(data_frame):
+    data_frame.to_csv(DB_FILE, index=False)
 
-# Chargement des données
 df = load_data()
 
-# --- INTERFACE ---
-st.sidebar.header("Navigation")
-menu = st.sidebar.radio("Aller vers :", ["Collecte de données", "Tableau de bord Statistique", "Gestion du fichier"])
+# 5. NAVIGATION PAR ONGLET (Comme sur l'image)
+tab1, tab2 = st.tabs(["START COLLECTION", "OPEN DASHBOARD"])
 
-if menu == "Collecte de données":
-    st.subheader("Formulaire d'enregistrement")
-    with st.form("input_form", clear_on_submit=True):
-        col1, col2 = st.columns(2)
-        date_obs = col1.date_input("Date du relevé")
-        stade_obs = col1.selectbox("Stade de croissance", ["Maternité", "Engraissement", "Reproduction"])
-        poids_obs = col2.number_input("Masse mesurée (kg)", min_value=0.01, max_value=15.0, step=0.01)
+with tab1:
+    st.subheader("Enregistrement des mesures")
+    with st.form("collection_form", clear_on_submit=True):
+        c1, c2 = st.columns(2)
+        date_val = c1.date_input("Date du relevé")
+        stade_val = c1.selectbox("Stade de l'animal", ["Maternité", "Sevrage", "Engraissement", "Reproducteur"])
+        poids_val = c2.number_input("Masse (kg)", min_value=0.01, step=0.01)
         
-        submit = st.form_submit_button("Enregistrer la donnée")
+        submit_btn = st.form_submit_button("VALIDER L'ENREGISTREMENT")
         
-        if submit:
-            new_entry = pd.DataFrame([[str(date_obs), stade_obs, poids_obs]], columns=["Date", "Stade", "Poids"])
-            df = pd.concat([df, new_entry], ignore_index=True)
+        if submit_btn:
+            new_row = pd.DataFrame([[str(date_val), stade_val, poids_val]], columns=["Date", "Stade", "Poids"])
+            df = pd.concat([df, new_row], ignore_index=True)
             save_data(df)
-            st.success("Donnée enregistrée avec succès !")
+            st.success("Donnée synchronisée avec le module local.")
             st.rerun()
 
-elif menu == "Tableau de bord Statistique":
-    st.subheader("Analyse Descriptive")
+with tab2:
+    st.subheader("Analyse Descriptive des Performances")
     if not df.empty:
-        # Nettoyage rapide pour l'analyse
         df["Poids"] = pd.to_numeric(df["Poids"])
         
-        # Indicateurs
+        # Métriques style Dashboard
         m1, m2, m3 = st.columns(3)
-        m1.metric("Sujets mesurés", len(df))
-        m2.metric("Moyenne (kg)", f"{df['Poids'].mean():.2f}")
-        m3.metric("Écart-type", f"{df['Poids'].std():.2f}")
+        m1.metric("SUJETS (N)", len(df))
+        m2.metric("MOYENNE (KG)", f"{df['Poids'].mean():.2f}")
+        m3.metric("ÉCART-TYPE", f"{df['Poids'].std():.2f}")
 
-        # Graphique robuste
-        st.markdown("### Distribution des masses par stade")
-        fig = px.box(df, x="Stade", y="Poids", color="Stade", points="all")
+        # Graphique avancé (Violin Plot pour l'analyse de distribution)
+        fig = px.violin(df, y="Poids", x="Stade", color="Stade", box=True, points="all",
+                        title="Distribution des masses par catégorie")
+        
+        # Thème sombre pour le graphique
+        fig.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
         st.plotly_chart(fig, use_container_width=True)
         
-        st.dataframe(df, use_container_width=True)
+        with st.expander("Consulter l'historique complet"):
+            st.dataframe(df, use_container_width=True)
+            
+            # Option de téléchargement pour le prof
+            csv_data = df.to_csv(index=False).encode('utf-8')
+            st.download_button("EXPORTER LES DONNÉES (.CSV)", csv_data, "data_cunistat.csv", "text/csv")
     else:
-        st.warning("Aucune donnée disponible. Commencez par la collecte.")
+        st.warning("Module d'analyse en attente de données. Veuillez utiliser l'onglet COLLECTION.")
 
-else:
-    st.subheader("Paramètres et Exportation")
-    st.write("Pour valider le critère de **Fiabilité**, vous pouvez télécharger la base de données actuelle.")
-    
-    if not df.empty:
-        csv = df.to_csv(index=False).encode('utf-8')
-        st.download_button("Télécharger le fichier .CSV", data=csv, file_name="data_inf232.csv", mime="text/csv")
-    
-    if st.button("Réinitialiser la base de données (Danger)"):
-        if os.path.exists(DB_FILE):
-            os.remove(DB_FILE)
-            st.warning("Base de données supprimée.")
-            st.rerun()
+# Footer informatif
+st.sidebar.markdown("---")
+st.sidebar.write("**Étudiant :** [Ton Nom]")
+st.sidebar.write("**Cours :** INF 232 - Analyse de données")
+st.sidebar.write("**Serveur :** Opérationnel ✅")
