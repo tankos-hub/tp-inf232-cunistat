@@ -2,48 +2,66 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-# Configuration de la page pour mobile
-st.set_page_config(page_title="CuniStat - AgriTech", layout="centered")
+# Configuration sobre
+st.set_page_config(page_title="Analyse de données - INF232", layout="wide")
 
-st.title("🍀 CuniStat : Gestion Cunicole")
-st.write("TP INF 232 - Analyse de données")
+# Suppression des emojis pour un look plus pro
+st.title("Système de Collecte et d'Analyse Cunicole")
+st.caption("Projet INF 232 EC2 - Analyse de données descriptives")
 
-# --- SIMULATION DE BASE DE DONNÉES (Pour le moment) ---
-if 'db' not in st.session_state:
-    st.session_state.db = pd.DataFrame(columns=["Date", "Stade", "Poids"])
+# --- BACKEND : Gestion de la persistance (Simulée par fichier pour le TP) ---
+# Note : Pour un vrai déploiement permanent, on utilise Google Sheets.
+# Pour le TP, nous allons utiliser un fichier CSV local sur le serveur.
+DB_FILE = "data_collecte.csv"
 
-# --- ONGLETS ---
-tab1, tab2 = st.tabs(["📥 Collecte", "📊 Analyse Descriptive"])
+def load_data():
+    try:
+        return pd.read_csv(DB_FILE)
+    except FileNotFoundError:
+        return pd.DataFrame(columns=["Date", "Stade", "Poids"])
 
-with tab1:
-    st.header("Saisie des données")
-    with st.form("collect_form"):
-        date = st.date_input("Date du relevé")
-        stade = st.selectbox("Phase d'élevage", ["Maternité", "Engraissement", "Reproduction"])
-        poids = st.number_input("Poids (kg)", min_value=0.1, max_value=8.0, step=0.1)
-        
-        submitted = st.form_submit_button("Enregistrer la donnée")
-        if submitted:
-            new_row = {"Date": date, "Stade": stade, "Poids": poids}
-            st.session_state.db = pd.concat([st.session_state.db, pd.DataFrame([new_row])], ignore_index=True)
-            st.success("Donnée ajoutée localement !")
+def save_data(df):
+    df.to_csv(DB_FILE, index=False)
 
-with tab2:
-    st.header("Tableau de bord descriptif")
-    if not st.session_state.db.empty:
-        df = st.session_state.db
-        
-        # Métriques
+# Chargement initial
+df = load_data()
+
+# --- INTERFACE ---
+st.sidebar.header("Navigation")
+menu = st.sidebar.radio("Aller vers :", ["Saisie des données", "Tableau de bord"])
+
+if menu == "Saisie des données":
+    st.subheader("Formulaire de collecte")
+    with st.form("form_saisie", clear_on_submit=True):
         col1, col2 = st.columns(2)
-        col1.metric("Nombre de sujets", len(df))
-        col2.metric("Poids Moyen (kg)", round(df["Poids"].mean(), 2))
+        with col1:
+            date = st.date_input("Date du relevé")
+            stade = st.selectbox("Phase d'élevage", ["Maternité", "Engraissement", "Reproduction"])
+        with col2:
+            poids = st.number_input("Poids mesuré (kg)", min_value=0.05, max_value=12.0, step=0.01)
         
-        # Graphique
-        st.subheader("Distribution des poids")
-        fig = px.histogram(df, x="Poids", color="Stade", barmode="group")
+        submit = st.form_submit_button("Valider l'enregistrement")
+        
+        if submit:
+            new_data = pd.DataFrame([[date, stade, poids]], columns=["Date", "Stade", "Poids"])
+            df = pd.concat([df, new_data], ignore_index=True)
+            save_data(df)
+            st.success("Donnée enregistrée avec succès dans la base.")
+
+else:
+    st.subheader("Analyse Descriptive des données")
+    if not df.empty:
+        # Indicateurs statistiques
+        m1, m2, m3 = st.columns(3)
+        m1.metric("Effectif total", len(df))
+        m2.metric("Poids moyen", f"{df['Poids'].mean():.2f} kg")
+        m3.metric("Ecart-type", f"{df['Poids'].std():.2f}")
+
+        # Graphiques
+        fig = px.box(df, x="Stade", y="Poids", title="Distribution des poids par stade")
         st.plotly_chart(fig, use_container_width=True)
         
-        st.subheader("Données brutes")
+        st.write("### Historique des données")
         st.dataframe(df, use_container_width=True)
     else:
-        st.info("Aucune donnée collectée. Allez dans l'onglet 'Collecte'.")
+        st.warning("La base de données est vide. Veuillez effectuer des saisies.")
