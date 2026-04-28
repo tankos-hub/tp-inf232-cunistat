@@ -6,16 +6,13 @@ import os
 # 1. Configuration de la page
 st.set_page_config(page_title="CUNI VALENCE - INF232", layout="centered")
 
-# 2. HACK CSS (Le design sombre et moderne de ton ami)
+# 2. HACK CSS (Design sombre "Data Valence")
 st.markdown("""
 <style>
-    /* Fond sombre global */
     [data-testid="stAppViewContainer"] {
         background-color: #0E1117;
         color: #FFFFFF;
     }
-
-    /* Titre principal style "DATA VALENCE" */
     .main-title {
         font-size: 3.5rem;
         font-weight: 850;
@@ -23,13 +20,8 @@ st.markdown("""
         letter-spacing: -2px;
         color: #ffffff;
         margin-bottom: 0px;
-        font-family: 'Inter', sans-serif;
     }
-    .accent {
-        color: #00FBFF; /* Cyan néon */
-    }
-
-    /* Bandeau de description */
+    .accent { color: #00FBFF; }
     .description-box {
         font-size: 0.9rem;
         text-align: center;
@@ -41,21 +33,8 @@ st.markdown("""
         margin-top: 15px;
         margin-bottom: 30px;
         text-transform: uppercase;
-        letter-spacing: 1px;
     }
-
-    /* Personnalisation des onglets (Tabs) */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 10px;
-        justify-content: center;
-    }
-    .stTabs [data-baseweb="tab"] {
-        height: 50px;
-        background-color: #1A1C24;
-        border-radius: 4px;
-        color: white;
-        padding: 10px 30px;
-    }
+    .stTabs [data-baseweb="tab-list"] { justify-content: center; }
     .stTabs [aria-selected="true"] {
         background-color: #00FBFF !important;
         color: #000000 !important;
@@ -67,9 +46,8 @@ st.markdown("""
 # 3. HEADER
 st.markdown('<div class="main-title">CUNI <span class="accent">VALENCE</span></div>', unsafe_allow_html=True)
 st.markdown('<div class="description-box">COLLECTE ET ANALYSE DESCRIPTIVE DE LA CROISSANCE ET DES FLUX PRODUCTIFS CUNICOLES.</div>', unsafe_allow_html=True)
-st.caption("Filière Informatique L2 - UY1 | Module de Recherche Académique v1.0")
 
-# 4. GESTION DES DONNÉES (CSV Local)
+# 4. GESTION DES DONNÉES
 DB_FILE = "cunistat_data.csv"
 
 def load_data():
@@ -82,7 +60,7 @@ def save_data(data_frame):
 
 df = load_data()
 
-# 5. NAVIGATION PAR ONGLET (Comme sur l'image)
+# 5. NAVIGATION
 tab1, tab2 = st.tabs(["START COLLECTION", "OPEN DASHBOARD"])
 
 with tab1:
@@ -107,31 +85,44 @@ with tab2:
     if not df.empty:
         df["Poids"] = pd.to_numeric(df["Poids"])
         
-        # Métriques style Dashboard
+        # Indicateurs
         m1, m2, m3 = st.columns(3)
         m1.metric("SUJETS (N)", len(df))
         m2.metric("MOYENNE (KG)", f"{df['Poids'].mean():.2f}")
         m3.metric("ÉCART-TYPE", f"{df['Poids'].std():.2f}")
 
-        # Graphique avancé (Violin Plot pour l'analyse de distribution)
-        fig = px.violin(df, y="Poids", x="Stade", color="Stade", box=True, points="all",
-                        title="Distribution des masses par catégorie")
-        
-        # Thème sombre pour le graphique
+        # Graphique
+        fig = px.violin(df, y="Poids", x="Stade", color="Stade", box=True, points="all")
         fig.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)")
         st.plotly_chart(fig, use_container_width=True)
         
-        with st.expander("Consulter l'historique complet"):
+        # --- SECTION EXPORTATION (Bouton Télécharger) ---
+        st.markdown("---")
+        st.write("### 📂 Gestion de la Base de Données")
+        
+        col_exp, col_del = st.columns(2)
+        
+        # Bouton Télécharger
+        csv_data = df.to_csv(index=False).encode('utf-8')
+        col_exp.download_button(
+            label="📥 EXPORTER EN CSV",
+            data=csv_data,
+            file_name="cuni_valence_export.csv",
+            mime="text/csv",
+            help="Télécharger les données pour Excel ou une analyse externe"
+        )
+        
+        # Bouton Réinitialiser (optionnel)
+        if col_del.button("🗑️ VIDER LA BASE"):
+            if os.path.exists(DB_FILE):
+                os.remove(DB_FILE)
+                st.rerun()
+                
+        with st.expander("Voir les données brutes"):
             st.dataframe(df, use_container_width=True)
-            
-            # Option de téléchargement pour le prof
-            csv_data = df.to_csv(index=False).encode('utf-8')
-            st.download_button("EXPORTER LES DONNÉES (.CSV)", csv_data, "data_cunistat.csv", "text/csv")
     else:
-        st.warning("Module d'analyse en attente de données. Veuillez utiliser l'onglet COLLECTION.")
+        st.warning("Module d'analyse vide. Veuillez enregistrer des mesures.")
 
-# Footer informatif
-st.sidebar.markdown("---")
-st.sidebar.write("**Étudiant :** [Ton Nom]")
-st.sidebar.write("**Cours :** INF 232 - Analyse de données")
-st.sidebar.write("**Serveur :** Opérationnel ✅")
+# Sidebar info
+st.sidebar.markdown("### Info Projet")
+st.sidebar.info("Application de suivi cunicole développée pour l'évaluation INF232 (UY1).")    
