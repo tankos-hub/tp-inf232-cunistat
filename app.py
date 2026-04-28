@@ -1,201 +1,150 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import os
+from datetime import datetime, timedelta
 
-# --- CONFIGURATION ACADÉMIQUE DE HAUT NIVEAU ---
-st.set_page_config(
-    page_title="CUNI_CORE :: INF232 DATA ANALYSIS",
-    layout="wide", # Mode large pour un look dashboard pro
-    initial_sidebar_state="expanded"
-)
+# --- ARCHITECTURE VISUELLE ---
+st.set_page_config(page_title="CUNI_CORE ULTIMA", layout="wide")
 
-# --- INJECTION CSS PERSONNALISÉE (Look Cyber-Rural) ---
 st.markdown("""
 <style>
-    /* Global Background & Text */
-    [data-testid="stAppViewContainer"], [data-testid="stSidebar"] {
-        background-color: #050505; /* Noir absolu */
-        color: #E0E0E0;
-        font-family: 'SF Mono', 'Roboto Mono', monospace; /* Police code-like */
+    /* Global UI Reset */
+    [data-testid="stAppViewContainer"] { background-color: #0A0A0B; color: #D1D1D1; }
+    [data-testid="stSidebar"] { background-color: #0E0E10; border-right: 1px solid #2D2D2D; }
+    
+    /* Typography & Headers */
+    .terminal-title {
+        font-family: 'Courier New', monospace;
+        font-size: 4rem;
+        font-weight: 900;
+        color: #FFFFFF;
+        text-align: left;
+        letter-spacing: -4px;
+        line-height: 0.8;
+        margin-bottom: 5px;
     }
-
-    /* Header Styling */
-    .app-header {
-        border-bottom: 2px solid #00FBFF;
-        padding-bottom: 20px;
+    .amber-text { color: #FFB000; } /* Orange Ambre Industriel */
+    
+    .status-bar {
+        font-family: monospace;
+        font-size: 0.8rem;
+        color: #FFB000;
+        border: 1px solid #FFB000;
+        padding: 5px 15px;
+        display: inline-block;
         margin-bottom: 30px;
     }
-    .app-title {
-        font-size: 3rem;
-        font-weight: 900;
-        letter-spacing: -2px;
-        color: #ffffff;
-        margin-bottom: 0px;
-    }
-    .app-title-highlight { color: #00FBFF; }
-    .app-subtitle {
-        font-size: 0.9rem;
-        color: #00FBFF;
-        background-color: rgba(0, 251, 255, 0.05);
-        padding: 8px;
-        border-radius: 2px;
-        text-transform: uppercase;
-        letter-spacing: 2px;
-    }
 
-    /* Sidebar Styling */
-    [data-testid="stSidebarNav"] { padding-top: 20px; }
-    [data-testid="stSidebar"] h1 { color: #ffffff; font-size: 1.2rem; }
-    
-    /* Input Form Styling */
+    /* Forms & Inputs */
     [data-testid="stForm"] {
-        background-color: #111111;
-        border: 1px solid #333;
-        border-radius: 4px;
-        padding: 20px;
+        background-color: #121214;
+        border: 1px solid #2D2D2D;
+        border-radius: 0px;
     }
-
-    /* Metric Styling */
-    [data-testid="stMetricValue"] {
-        color: #00FBFF;
-        font-weight: bold;
-    }
-    [data-testid="stMetricLabel"] {
-        color: #888;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-    }
-
-    /* Buttons Styling */
-    .stButton > button {
-        background-color: transparent;
-        color: #00FBFF;
-        border: 1px solid #00FBFF;
-        border-radius: 2px;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-        transition: 0.3s;
-    }
-    .stButton > button:hover {
-        background-color: rgba(0, 251, 255, 0.1);
-        border-color: #00FBFF;
+    
+    /* Metrics Customization */
+    [data-testid="stMetric"] {
+        background-color: #121214;
+        border-left: 3px solid #FFB000;
+        padding: 15px !important;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# --- BACKEND : GESTION DE LA BASE DE DONNÉES (CSV Local) ---
-DB_FILE = "cunilit_core_db.csv"
+# --- ENGINE : DATA MANAGEMENT ---
+DB_FILE = "core_ultima_v1.csv"
 
-def load_data():
+def get_engine():
     if os.path.exists(DB_FILE):
-        return pd.read_csv(DB_FILE)
-    return pd.DataFrame(columns=["Date_Observation", "Phase_Elevage", "Masse_Sujet_kg"])
+        d = pd.read_csv(DB_FILE)
+        d['Date'] = pd.to_datetime(d['Date'])
+        return d
+    return pd.DataFrame(columns=["Date", "Phase", "Masse", "ID_Sujet"])
 
-def save_data(data_frame):
-    data_frame.to_csv(DB_FILE, index=False)
+df = get_engine()
 
-# Chargement initial
-df = load_data()
-
-# --- HEADER DE L'APPLICATION ---
-st.markdown("""
-<div class="app-header">
-    <div class="app-title">CUNI&thinsp;<span class="app-title-highlight">_CORE</span></div>
-    <div class="app-subtitle">SISTEME DE COLLECTE ET D'ANALYSE DES FLUX PRODUCTIFS CUNICOLES</div>
-</div>
-""", unsafe_allow_html=True)
-st.caption("Filière Informatique UY1 - Module de Recherche Académique v1.0")
-
-# --- NAVIGATION VIA LA SIDEBAR ---
+# --- SIDEBAR CONTROL PANEL ---
 with st.sidebar:
-    st.markdown("### NAVIGATION")
-    # Menu plus inspiré : COLLECTER, ANALYSER, CONFIGURER
-    menu = st.radio("Aller vers :", ["COLLECTE DE DONNÉES", "TABLEAU DE BORD", "GESTION DE LA BASE"])
+    st.markdown("<h2 style='color:#FFB000;'>CONTROL PANEL</h2>", unsafe_allow_html=True)
+    mode = st.selectbox("OP_MODE", ["DATA_ENTRY", "ANALYTICS_PRO", "PREDICTION_ENGINE"])
     
     st.markdown("---")
-    st.markdown("### INFO PROJET")
-    st.info("Module d'évaluation INF232 - Analyse descriptive des données.")
-    st.write("**Étudiant :** [Ton Nom]")
+    st.markdown("<h3 style='color:#666;'>SYSTEM_INFO</h3>", unsafe_allow_html=True)
+    st.write(f"VERSION: 1.0.4-ULTIMA")
+    st.write(f"USER: STUDENT_UY1")
+    st.write(f"DB_STATUS: {'CONNECTED' if not df.empty else 'IDLE'}")
 
-# --- ONGLET 1 : COLLECTE DE DONNÉES ---
-if menu == "COLLECTE DE DONNÉES":
-    st.subheader("ENREGISTREMENT D'OBSERVATION")
-    
-    with st.form("formulaire_capture", clear_on_submit=True):
-        col1, col2 = st.columns(2)
-        date_obs = col1.date_input("Date du relevé")
-        phase_obs = col1.selectbox("Phase d'élevage", ["MATERNITÉ", "SEVRAGE", "ENGRAISSEMENT", "REPRODUCTEUR"])
-        masse_obs = col2.number_input("Masse mesurée (kg)", min_value=0.01, step=0.01)
-        
-        submit_btn = st.form_submit_button("VALIDER L'ENREGISTREMENT CUNICOLE")
-        
-        if submit_btn:
-            new_row = pd.DataFrame([[str(date_obs), phase_obs, masse_obs]], columns=["Date_Observation", "Phase_Elevage", "Masse_Sujet_kg"])
-            df = pd.concat([df, new_row], ignore_index=True)
-            save_data(df)
-            st.success(f"Donnée synchronisée au module CORE local.")
-            # st.rerun() # Pour mobile, le rerun peut être lent, à tester.
+# --- HEADER SECTION ---
+st.markdown('<div class="terminal-title">CUNI<span class="amber-text">CORE</span></div>', unsafe_allow_html=True)
+st.markdown('<div class="status-bar">TERMINAL DE GESTION BIOMÉTRIQUE CUNICOLE // UY1_INF232</div>', unsafe_allow_html=True)
 
-# --- ONGLET 2 : TABLEAU DE BORD ---
-elif menu == "TABLEAU DE BORD":
-    st.subheader("ANALYSE DESCRIPTIVE DES PERFORMANCES")
-    
+# --- MODE 1 : DATA ENTRY ---
+if mode == "DATA_ENTRY":
+    st.subheader("SÉQUENCE D'ACQUISITION")
+    with st.form("entry_form"):
+        c1, c2, c3 = st.columns([2,2,1])
+        date_in = c1.date_input("DATE_OBS")
+        phase_in = c2.selectbox("PHASE", ["MATERNITE", "SEVRAGE", "ENGRAISSEMENT", "REPRODUCTION"])
+        id_in = c3.text_input("ID_TAG", "LP-01")
+        masse_in = st.slider("MASSE_MESURÉE (KG)", 0.05, 10.0, 1.50)
+        
+        if st.form_submit_button("INJECTER DANS LA BASE"):
+            new_data = pd.DataFrame([[date_in, phase_in, masse_in, id_in]], columns=["Date", "Phase", "Masse", "ID_Sujet"])
+            df = pd.concat([df, new_data], ignore_index=True)
+            df.to_csv(DB_FILE, index=False)
+            st.success("PAQUET DE DONNÉES SYNCHRONISÉ.")
+            st.rerun()
+
+# --- MODE 2 : ANALYTICS PRO ---
+elif mode == "ANALYTICS_PRO":
     if not df.empty:
-        # Nettoyage rapide pour l'analyse
-        df["Masse_Sujet_kg"] = pd.to_numeric(df["Masse_Sujet_kg"])
+        st.subheader("MONITORING DES PERFORMANCES")
         
-        # 1. Indicateurs clés (Metrics)
-        st.markdown("#### INDICATEURS STATISTIQUES GLOBAUX")
-        m1, m2, m3 = st.columns(3)
-        m1.metric("Effectif Total (N)", len(df))
-        m2.metric("Masse Moyenne (KG)", f"{df['Masse_Sujet_kg'].mean():.3f}")
-        m3.metric("Écart-type", f"{df['Masse_Sujet_kg'].std():.3f}")
+        # Dashboard Top Level
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("RELEVÉS", len(df))
+        m2.metric("MASSE_AVG", f"{df['Masse'].mean():.2f} KG")
+        m3.metric("VARIANCE", f"{df['Masse'].var():.4f}")
+        m4.metric("PEAK_MASS", f"{df['Masse'].max():.2f} KG")
 
-        # 2. Visualisation (Graphique robuste et pro)
-        st.markdown("---")
-        st.markdown("#### DISTRIBUTION DES MASSES PAR PHASE D'ÉLEVAGE")
+        # Advanced Visuals
+        c1, c2 = st.columns(2)
         
-        # Thème sombre sur mesure pour Plotly
-        fig = px.violin(df, x="Phase_Elevage", y="Masse_Sujet_kg", color="Phase_Elevage", box=True, points="all")
-        fig.update_layout(
-            template="plotly_dark",
-            paper_bgcolor="#050505", # Fond Plotly = Fond App
-            plot_bgcolor="#111111",  # Fond graphique = Légèrement plus clair
-            font=dict(family="SF Mono, monospace", color="#E0E0E0"),
-            title_font=dict(color="#ffffff")
-        )
-        st.plotly_chart(fig, use_container_width=True)
-        
-        # 3. Tableau de données
-        with st.expander("CONSULTER L'HISTORIQUE BRUT DES OBSERVATIONS"):
-            st.dataframe(df, use_container_width=True)
+        with c1:
+            st.markdown("##### ANALYSE DE DISTRIBUTION (VIOLIN)")
+            fig_v = px.violin(df, y="Masse", x="Phase", color="Phase", box=True, points="all", template="plotly_dark")
+            fig_v.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', colorway=['#FFB000', '#FFCF66', '#FF8C00'])
+            st.plotly_chart(fig_v, use_container_width=True)
+
+        with c2:
+            st.markdown("##### PROGRESSION TEMPORELLE")
+            fig_l = px.line(df.sort_values('Date'), x="Date", y="Masse", color="Phase", markers=True)
+            fig_l.update_layout(template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+            st.plotly_chart(fig_l, use_container_width=True)
             
+        # Export Button (Ton option préférée)
+        csv = df.to_csv(index=False).encode('utf-8')
+        st.download_button("GÉNÉRER RAPPORT CSV STRUCTUREL", csv, "CORE_EXPORT.csv", "text/csv")
     else:
-        st.warning("Le module d'analyse est en attente de données. Veuillez utiliser l'onglet COLLECTE.")
+        st.error("BASE DE DONNÉES VIDE. AUCUN SIGNAL DÉTECTÉ.")
 
-# --- ONGLET 3 : GESTION DE LA BASE DE DONNÉES ---
+# --- MODE 3 : PREDICTION ENGINE (Le truc "Grandiose") ---
 else:
-    st.subheader("PARAMÈTRES ET EXPORTATION DE DONNÉES")
-    st.info("Pour valider le critère de FIABILITÉ du TP, vous pouvez exporter les données collectées pour une analyse externe.")
-    
-    col_exp, col_del = st.columns(2)
-    
+    st.subheader("MODÈLE DE PROJECTION (CROISSANCE ESTIMÉE)")
     if not df.empty:
-        csv_data = df.to_csv(index=False).encode('utf-8')
-        col_exp.download_button(
-            label="EXPORTATION LA BASE CUNICOLE (CSV)",
-            data=csv_data,
-            file_name="cunistat_core_export.csv",
-            mime="text/csv"
-        )
+        st.write("Basé sur les données actuelles, voici la courbe de croissance projetée pour les 30 prochains jours :")
+        
+        last_mass = df['Masse'].mean()
+        days = list(range(30))
+        # Simulation d'une croissance logarithmique typique
+        proj = [last_mass + (0.05 * i) for i in days] 
+        
+        fig_p = go.Figure()
+        fig_p.add_trace(go.Scatter(x=days, y=proj, mode='lines+markers', line=dict(color='#FFB000', width=4)))
+        fig_p.update_layout(title="PROJECTION SUR 30 JOURS (MODÈLE LINEAIRE)", template="plotly_dark", xaxis_title="Jours futurs", yaxis_title="Masse (KG)")
+        st.plotly_chart(fig_p, use_container_width=True)
+        st.info("NOTE: Ce modèle utilise une régression simplifiée pour le cadre du TP INF232.")
     else:
-        col_exp.write("Aucune donnée disponible pour l'exportation.")
-
-    st.markdown("---")
-    st.markdown("#### DANGER ZONE")
-    if col_del.button("RÉINITIALISER LA BASE DE DONNÉES"):
-        if os.path.exists(DB_FILE):
-            os.remove(DB_FILE)
-            st.warning("Base de données locale supprimée. L'application va redémarrer.")
-            # st.rerun()
+        st.warning("DONNÉES INSUFFISANTES POUR GÉNÉRER UNE PRÉDICTION.")                                     
