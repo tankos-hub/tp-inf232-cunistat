@@ -1,150 +1,129 @@
 import streamlit as st
 import pandas as pd
-import gspread
-from oauth2client.service_account import ServiceAccountCredentials
-from datetime import datetime
 import plotly.express as px
-import plotly.graph_objects as go
-from streamlit_option_menu import option_menu
+import os
+from datetime import datetime
 
-# ------------------------------
-# Configuration de la page
-st.set_page_config(page_title="Flow Writer Analytics", layout="wide")
-st.title("✍️ Creative Writing Flow Tracker")
-st.markdown("Collecte & analyse descriptive de vos séances d'écriture créative")
+# --- CONFIGURATION VISUELLE ---
+st.set_page_config(page_title="CUNISTAT PRESTIGE", layout="wide")
 
-# ------------------------------
-# Connexion à Google Sheets (via secrets Streamlit)
-def init_google_sheet():
-    try:
-        # Les secrets sont définis dans Streamlit Cloud (ou .streamlit/secrets.toml)
-        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-        creds_dict = st.secrets["gcp_service_account"]
-        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-        client = gspread.authorize(creds)
-        sheet = client.open("FlowWriterData").sheet1  # Nom de votre Google Sheet
-        return sheet
-    except Exception as e:
-        st.error(f"Erreur de connexion à Google Sheets : {e}")
-        return None
+st.markdown("""
+<style>
+    [data-testid="stAppViewContainer"] { background-color: #060606; color: #FFFFFF; }
+    
+    /* Titre Géant style 'DATA VALENCE' */
+    .main-title {
+        font-size: 5rem;
+        font-weight: 900;
+        text-align: center;
+        color: #FFFFFF;
+        letter-spacing: -5px;
+        margin-top: -50px;
+    }
+    .neon-teal { color: #00FBFF; text-shadow: 0 0 20px rgba(0,251,255,0.6); }
+    
+    .status-tag {
+        text-align: center;
+        color: #00FBFF;
+        font-family: monospace;
+        letter-spacing: 3px;
+        font-size: 0.8rem;
+        margin-bottom: 50px;
+    }
 
-# Créer l'en-tête si la feuille est vide
-def ensure_headers(sheet):
-    if sheet.row_count == 0 or sheet.row_values(1) == []:
-        headers = ["Timestamp", "Date", "Duree_min", "Activite_preparatoire", "Distractions_1_10",
-                   "Mots_ecrits", "Flow_score_1_10", "Creativite_score_1_10", "Commentaire"]
-        sheet.insert_row(headers, 1)
+    /* GROS BOUTONS D'ACCUEIL */
+    div.stButton > button {
+        height: 200px;
+        font-size: 1.8rem !important;
+        font-weight: 800;
+        border: 2px solid #00FBFF;
+        background-color: rgba(0, 251, 255, 0.02);
+        color: #FFFFFF;
+        border-radius: 5px;
+        transition: 0.4s;
+    }
+    div.stButton > button:hover {
+        background-color: #00FBFF;
+        color: #000000;
+        box-shadow: 0 0 40px rgba(0,251,255,0.4);
+    }
+</style>
+""", unsafe_allow_html=True)
 
-# ------------------------------
-# Formulaire de collecte
-def collect_data(sheet):
-    with st.form("session_form", clear_on_submit=True):
-        col1, col2 = st.columns(2)
-        with col1:
-            date = st.date_input("Date de la session", datetime.today())
-            duree = st.number_input("Durée (minutes)", min_value=5, max_value=180, value=30)
-            activite = st.selectbox("Activité préparatoire", 
-                                    ["Méditation", "Exercice léger", "Caféine", "Musique", "Rien"])
-            distractions = st.slider("Niveau de distractions (1 = très distrait, 10 = très focus)", 1, 10, 5)
-        with col2:
-            mots = st.number_input("Nombre de mots écrits", min_value=0, max_value=5000, value=250)
-            flow = st.slider("Score de flow (1 = bloqué, 10 = flow intense)", 1, 10, 6)
-            creativite = st.slider("Score de créativité auto-évalué", 1, 10, 6)
-            commentaire = st.text_area("Commentaire (optionnel)")
+# --- BACKEND SECURISE ---
+DB_FILE = "cunistat_data.csv"
+def load_db():
+    if os.path.exists(DB_FILE):
+        data = pd.read_csv(DB_FILE)
+        data['Date'] = data['Date'].astype(str) # Evite le bug de format de date
+        return data
+    return pd.DataFrame(columns=["Date", "Secteur", "Variable", "Valeur"])
 
-        submitted = st.form_submit_button("📥 Enregistrer la session")
+df = load_db()
 
-        if submitted:
-            if duree <= 0 or mots < 0:
-                st.warning("Veuillez corriger les valeurs (durée >0, mots >=0)")
-            else:
-                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                row = [timestamp, str(date), duree, activite, distractions, mots, flow, creativite, commentaire]
-                sheet.append_row(row)
-                st.success("✅ Données enregistrées dans Google Sheets !")
-                st.balloons()
+# --- NAVIGATION ---
+if "page" not in st.session_state:
+    st.session_state.page = "home"
 
-# ------------------------------
-# Chargement des données depuis Google Sheets
-@st.cache_data(ttl=600)
-def load_data(sheet):
-    try:
-        records = sheet.get_all_records()
-        if not records:
-            return pd.DataFrame()
-        df = pd.DataFrame(records)
-        # Nettoyage des types
-        numeric_cols = ["Duree_min", "Distractions_1_10", "Mots_ecrits", "Flow_score_1_10", "Creativite_score_1_10"]
-        for col in numeric_cols:
-            df[col] = pd.to_numeric(df[col], errors="coerce")
-        return df
-    except Exception as e:
-        st.error(f"Erreur de chargement : {e}")
-        return pd.DataFrame()
-
-# ------------------------------
-# Analyse descriptive
-def show_descriptive_analysis(df):
-    if df.empty:
-        st.info("Aucune donnée pour le moment. Envoyez votre première session !")
-        return
-
-    st.subheader("📊 Vue d'ensemble des données")
-    st.dataframe(df, use_container_width=True)
-
-    st.subheader("📈 Statistiques descriptives")
-    st.write(df.describe())
-
-    # Graphiques interactifs
+# --- PAGE D'ACCUEIL (FRONTEND GRAND FORMAT) ---
+if st.session_state.page == "home":
+    st.markdown('<div class="main-title">CUNI<span class="neon-teal">STAT</span></div>', unsafe_allow_html=True)
+    st.markdown('<div class="status-tag">ACADEMIC RESEARCH MODULE V2.0 // PRECISION AGRICULTURE</div>', unsafe_allow_html=True)
+    
     col1, col2 = st.columns(2)
-    with col1:
-        fig_hist = px.histogram(df, x="Creativite_score_1_10", nbins=10, title="Distribution du score de créativité")
-        st.plotly_chart(fig_hist, use_container_width=True)
-    with col2:
-        fig_box = px.box(df, y=["Flow_score_1_10", "Creativite_score_1_10"], title="Boxplot Flow vs Créativité")
-        st.plotly_chart(fig_box, use_container_width=True)
+    if col1.button("START COLLECTION"):
+        st.session_state.page = "collect"
+        st.rerun()
+    if col2.button("OPEN DASHBOARD"):
+        st.session_state.page = "dash"
+        st.rerun()
 
-    # Corrélations (heatmap)
-    st.subheader("🔗 Matrice de corrélation")
-    corr = df[["Duree_min", "Distractions_1_10", "Mots_ecrits", "Flow_score_1_10", "Creativite_score_1_10"]].corr()
-    fig_corr = px.imshow(corr, text_auto=True, aspect="auto", color_continuous_scale="RdBu_r", title="Corrélations")
-    st.plotly_chart(fig_corr, use_container_width=True)
+# --- PAGE COLLECTE (LES 6 CRITÈRES) ---
+elif st.session_state.page == "collect":
+    st.markdown("### --- FORMULAIRE D'ACQUISITION ---")
+    with st.form("main_form"):
+        c1, c2 = st.columns(2)
+        with c1:
+            in_date = st.date_input("Date")
+            # Intégration des 6 critères de ton image
+            in_secteur = st.selectbox("Secteur d'analyse", [
+                "SUIVI PRODUCTION (Poids, Croissance)",
+                "SUIVI SANITAIRE (Santé, Mortalité)",
+                "ALIMENTATION (Consommation, Coûts)",
+                "REPRODUCTION (Cycles, Fertilité)",
+                "ENVIRONNEMENT (Température, Humidité)",
+                "TRAÇABILITÉ (Mouvements, Lots)"
+            ])
+        with c2:
+            in_var = st.text_input("Désignation", placeholder="Ex: Lot A, Cage 4...")
+            # SÉCURITÉ : Pas de 0 kg ou 0 unité
+            in_val = st.number_input("Mesure (Valeur numérique)", min_value=0.01, format="%.2f")
+            
+        if st.form_submit_button("ENREGISTRER"):
+            new_row = pd.DataFrame([[str(in_date), in_secteur, in_var, in_val]], columns=df.columns)
+            df = pd.concat([df, new_row], ignore_index=True)
+            df.to_csv(DB_FILE, index=False)
+            st.success("DONNÉES ENREGISTRÉES")
+            st.rerun()
 
-    # Régression linéaire simple (exemple Distractions → Créativité)
-    st.subheader("📉 Régression linéaire simple (Distractions vs Créativité)")
-    from sklearn.linear_model import LinearRegression
-    import numpy as np
-    X = df[["Distractions_1_10"]].dropna()
-    y = df.loc[X.index, "Creativite_score_1_10"]
-    if len(X) > 1:
-        model = LinearRegression().fit(X, y)
-        y_pred = model.predict(X)
-        fig_reg = go.Figure()
-        fig_reg.add_trace(go.Scatter(x=X.squeeze(), y=y, mode='markers', name='Observations'))
-        fig_reg.add_trace(go.Scatter(x=X.squeeze(), y=y_pred, mode='lines', name='Régression', line=dict(color='red')))
-        fig_reg.update_layout(title=f"Créativité = {model.coef_[0]:.2f} * Distractions + {model.intercept_:.2f}",
-                              xaxis_title="Distractions (1-10)", yaxis_title="Score de créativité")
-        st.plotly_chart(fig_reg, use_container_width=True)
-        st.write(f"**Coefficient de détermination R² :** {model.score(X, y):.3f}")
+    if st.button("RETOUR"):
+        st.session_state.page = "home"
+        st.rerun()
+
+# --- PAGE DASHBOARD ---
+elif st.session_state.page == "dash":
+    st.markdown("### --- ANALYSE DES FLUX ---")
+    if not df.empty:
+        st.metric("TOTAL RELEVÉS", len(df))
+        fig = px.bar(df, x="Date", y="Valeur", color="Secteur", barmode="group", template="plotly_dark")
+        fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+        st.plotly_chart(fig, use_container_width=True)
+        
+        st.dataframe(df, use_container_width=True)
     else:
-        st.warning("Besoin d'au moins 2 points pour la régression.")
-
-    # Export CSV
-    st.subheader("📎 Exporter les données brutes")
-    csv = df.to_csv(index=False).encode('utf-8')
-    st.download_button("Télécharger CSV", data=csv, file_name="flow_writer_data.csv", mime="text/csv")
-
-# ------------------------------
-# Menu principal
-sheet = init_google_sheet()
-if sheet:
-    ensure_headers(sheet)
-    menu = option_menu(None, ["Nouvelle session", "Analyse descriptive"], 
-                       icons=["pencil-square", "bar-chart"], orientation="horizontal")
-    if menu == "Nouvelle session":
-        collect_data(sheet)
-    else:
-        df = load_data(sheet)
-        show_descriptive_analysis(df)
-else:
-    st.stop()
+        st.warning("Aucune donnée disponible.")
+        
+    if st.button("RETOUR"):
+        st.session_state.page = "home"
+        st.rerun()
+        
